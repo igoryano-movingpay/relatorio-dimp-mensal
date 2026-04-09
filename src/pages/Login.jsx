@@ -22,7 +22,7 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/v1/acessar", {
+      const response = await fetch("/regulatorios/api/v1/acessar", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

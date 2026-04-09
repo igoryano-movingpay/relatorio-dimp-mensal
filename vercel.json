@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/regulatorios/:path*",
+      "destination": "https://api.regulatorios.io/:path*"
+    },
+    {
+      "source": "/((?!assets|favicon).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
