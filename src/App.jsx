@@ -1,11 +1,33 @@
-function App() {
-  return (
-    <div className="flex h-screen items-center justify-center bg-slate-900">
-      <h1 className="text-4xl font-bold text-pink-500 underline decoration-wavy">
-        Tailwind Funcionando!
-      </h1>
-    </div>
-  )
-}
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
 
-export default App
+const ProtectedRoute = ({ children }) => {
+  const token = sessionStorage.getItem("access_token");
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+  return children;
+};
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route 
+          path="/dashboard" 
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } 
+        />
+        {/* Redirect root to dashboard */}
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        {/* Catch all to login */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
