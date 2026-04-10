@@ -21,6 +21,110 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 
+// IDs dos clientes regulatórios (regra de negócio)
+const REGULATORY_CLIENT_IDS = new Set([
+  2, 3, 7, 8, 9, 12, 16, 17, 18, 19, 20, 22, 23,
+  46, 83, 85, 88, 89, 90, 91, 92, 114, 136, 138, 140, 141, 142, 165
+]);
+
+// Componente reutilizável de dropdown multiselect de empresas
+const CompanyDropdown = ({ label, companies, selectedCompanies, onToggle, onSelectAll, allIds }) => {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const filtered = companies.filter(emp =>
+    (emp.empresa_nome || "").toLowerCase().includes(search.toLowerCase()) ||
+    emp.empresa_id.toString().includes(search)
+  );
+
+  const selectedCount = allIds.filter(id => selectedCompanies.includes(id)).length;
+  const allSelected = selectedCount === allIds.length && allIds.length > 0;
+
+  return (
+    <div className="relative" ref={ref}>
+      <Button
+        type="button"
+        variant="outline"
+        className="w-[250px] justify-between text-left font-normal bg-white dark:bg-zinc-900 dark:text-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+        onClick={() => setOpen(!open)}
+      >
+        <span className="truncate text-xs">
+          {allSelected
+            ? label
+            : selectedCount === 0
+              ? `Nenhum ${label.toLowerCase()}`
+              : `${selectedCount} de ${allIds.length} selecionado(s)`}
+        </span>
+        <CaretDown className="ml-1 h-4 w-4 shrink-0 opacity-50" />
+      </Button>
+
+      {open && (
+        <div className="absolute top-full right-0 xl:right-auto mt-1 w-[320px] max-h-[28rem] overflow-y-auto bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-xl rounded-md z-[100] flex flex-col">
+          {/* Caixa de Pesquisa */}
+          <div className="sticky top-0 bg-white dark:bg-zinc-900 z-10 px-2 pt-2 pb-2 border-b border-zinc-100 dark:border-zinc-800">
+            <Input
+              type="text"
+              placeholder="Pesquisar por ID ou Empresa..."
+              className="h-8 text-sm focus-visible:ring-1 dark:bg-zinc-800/50 dark:border-zinc-700 dark:text-zinc-100"
+              value={search}
+              onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1 p-2">
+            {/* Selecionar Todas deste grupo */}
+            <div
+              className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md cursor-pointer mb-1"
+              onClick={onSelectAll}
+            >
+              <div className={`w-4 h-4 border rounded flex items-center justify-center transition-colors ${allSelected ? 'bg-zinc-900 border-zinc-900 dark:bg-zinc-100 dark:border-zinc-100' : 'border-zinc-300 dark:border-zinc-600'}`}>
+                {allSelected && <Check weight="bold" className="text-white dark:text-zinc-900 w-3 h-3" />}
+              </div>
+              <span className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">Selecionar Todas</span>
+            </div>
+
+            {companies.length === 0 && (
+              <div className="px-2 py-3 text-sm text-zinc-500 dark:text-zinc-400 text-center">Carregando...</div>
+            )}
+
+            {filtered.length === 0 && companies.length > 0 && (
+              <div className="px-2 py-5 text-sm text-zinc-400 dark:text-zinc-500 text-center italic">
+                Nenhuma empresa encontrada com "{search}"
+              </div>
+            )}
+
+            {filtered.map(emp => {
+              const isChecked = selectedCompanies.includes(emp.empresa_id);
+              return (
+                <div
+                  key={emp.empresa_id}
+                  className="flex items-center gap-3 px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md cursor-pointer transition-colors"
+                  onClick={() => onToggle(emp.empresa_id)}
+                >
+                  <div className={`w-4 h-4 border rounded shrink-0 flex items-center justify-center transition-colors ${isChecked ? 'bg-zinc-900 border-zinc-900 dark:bg-zinc-100 dark:border-zinc-100' : 'border-zinc-300 dark:border-zinc-600'}`}>
+                    {isChecked && <Check weight="bold" className="text-white dark:text-zinc-900 w-3 h-3" />}
+                  </div>
+                  <span className="text-sm text-zinc-700 dark:text-zinc-300 truncate">{emp.empresa_id} - {emp.empresa_nome}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const getPreviousMonth = (dateString) => {
   let y, m;
   if (!dateString) {
@@ -208,25 +312,37 @@ export default function Dashboard() {
       return [];
     } catch { return []; }
   });
-  
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const dropdownRef = useRef(null);
-  const [searchCompany, setSearchCompany] = useState("");
 
-  const filteredCompanies = allCompanies.filter(emp => 
-    (emp.empresa_nome || "").toLowerCase().includes(searchCompany.toLowerCase()) || 
-    emp.empresa_id.toString().includes(searchCompany)
-  );
+  // Separação: Regulatórios vs Console
+  const regulatoryCompanies = allCompanies.filter(c => REGULATORY_CLIENT_IDS.has(c.empresa_id));
+  const consoleCompanies = allCompanies.filter(c => !REGULATORY_CLIENT_IDS.has(c.empresa_id));
+  const regulatoryIds = regulatoryCompanies.map(c => c.empresa_id);
+  const consoleIds = consoleCompanies.map(c => c.empresa_id);
 
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setDropdownOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  // Handlers para seleção por grupo
+  const handleCheckboxToggle = (id) => {
+    setSelectedCompanies(prev =>
+      prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAllRegulatory = () => {
+    const allRegSelected = regulatoryIds.every(id => selectedCompanies.includes(id));
+    if (allRegSelected) {
+      setSelectedCompanies(prev => prev.filter(id => !REGULATORY_CLIENT_IDS.has(id)));
+    } else {
+      setSelectedCompanies(prev => [...new Set([...prev, ...regulatoryIds])]);
+    }
+  };
+
+  const handleSelectAllConsole = () => {
+    const allConSelected = consoleIds.every(id => selectedCompanies.includes(id));
+    if (allConSelected) {
+      setSelectedCompanies(prev => prev.filter(id => REGULATORY_CLIENT_IDS.has(id)));
+    } else {
+      setSelectedCompanies(prev => [...new Set([...prev, ...consoleIds])]);
+    }
+  };
 
   useEffect(() => {
     // Se por um acaso ficar nulo, salvamos como null pra nao travar no cache
@@ -405,20 +521,6 @@ export default function Dashboard() {
     }
   };
 
-  const handleCheckboxToggle = (id) => {
-    setSelectedCompanies(prev => 
-      prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
-    );
-  };
-
-  const handleSelectAll = () => {
-    if (selectedCompanies.length === allCompanies.length) {
-      setSelectedCompanies([]); 
-    } else {
-      setSelectedCompanies(allCompanies.map(c => c.empresa_id));
-    }
-  };
-
   const handleExportCSV = () => {
     // 1. Filtrar e ordenar usando os mesmos critérios da tela
     const dataToExport = mainData
@@ -587,84 +689,27 @@ export default function Dashboard() {
           <div className="w-10"></div> {/* spacer */}
 
           {/* Form Filter */}
-          <form onSubmit={handleApplyFilter} className="flex flex-wrap items-center justify-center gap-3 w-full max-w-5xl">
+          <form onSubmit={handleApplyFilter} className="flex flex-wrap items-center justify-center gap-3 w-full max-w-6xl">
             
-            {/* Custom Dropdown: Empresas */}
-            <div className="relative" ref={dropdownRef}>
-              <Button 
-                type="button" 
-                variant="outline" 
-                className="w-[280px] justify-between text-left font-normal bg-white dark:bg-zinc-900 dark:text-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                onClick={() => setDropdownOpen(!dropdownOpen)}
-              >
-                <span className="truncate">
-                  {selectedCompanies.length === allCompanies.length && allCompanies.length > 0
-                    ? "Todas Empresas Selecionadas"
-                    : selectedCompanies.length === 0 
-                      ? "Nenhuma Empresa Expirou/Salva" 
-                      : `${selectedCompanies.length} selecionada(s)`}
-                </span>
-                <CaretDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-              </Button>
+            {/* Filtro 1: Clientes Regulatórios */}
+            <CompanyDropdown
+              label="CLIENTES REGULATÓRIOS"
+              companies={regulatoryCompanies}
+              selectedCompanies={selectedCompanies}
+              onToggle={handleCheckboxToggle}
+              onSelectAll={handleSelectAllRegulatory}
+              allIds={regulatoryIds}
+            />
 
-              {dropdownOpen && (
-                <div className="absolute top-full right-0 xl:right-auto mt-1 w-[340px] max-h-[28rem] overflow-y-auto bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-xl rounded-md z-[100] flex flex-col">
-                  
-                  {/* Caixa de Pesquisa dentro do Dropdown */}
-                  <div className="sticky top-0 bg-white dark:bg-zinc-900 z-10 px-2 pt-2 pb-2 border-b border-zinc-100 dark:border-zinc-800">
-                    <Input 
-                      type="text" 
-                      placeholder="Pesquisar por ID ou Empresa..." 
-                      className="h-8 text-sm focus-visible:ring-1 dark:bg-zinc-800/50 dark:border-zinc-700 dark:text-zinc-100"
-                      value={searchCompany}
-                      onKeyDown={(e) => {
-                         if (e.key === 'Enter') e.preventDefault();
-                      }}
-                      onChange={(e) => setSearchCompany(e.target.value)}
-                    />
-                  </div>
-
-                  {/* Wrapper para os itens que vão rolar embaixo */}
-                  <div className="flex flex-col gap-1 p-2">
-                    <div 
-                      className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md cursor-pointer mb-1"
-                      onClick={handleSelectAll}
-                    >
-                       <div className={`w-4 h-4 border rounded flex items-center justify-center transition-colors ${selectedCompanies.length === allCompanies.length && allCompanies.length > 0 ? 'bg-zinc-900 border-zinc-900 dark:bg-zinc-100 dark:border-zinc-100' : 'border-zinc-300 dark:border-zinc-600'}`}>
-                          {selectedCompanies.length === allCompanies.length && allCompanies.length > 0 && <Check weight="bold" className="text-white dark:text-zinc-900 w-3 h-3" />}
-                       </div>
-                       <span className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">Selecionar Todas</span>
-                    </div>
-                    
-                    {allCompanies.length === 0 && (
-                      <div className="px-2 py-3 text-sm text-zinc-500 dark:text-zinc-400 text-center">Carregando repositório de clientes...</div>
-                    )}
-
-                    {filteredCompanies.length === 0 && allCompanies.length > 0 && (
-                       <div className="px-2 py-5 text-sm text-zinc-400 dark:text-zinc-500 text-center italic">
-                          Nenhuma empresa encontrada com "{searchCompany}"
-                       </div>
-                    )}
-
-                    {filteredCompanies.map(emp => {
-                      const isChecked = selectedCompanies.includes(emp.empresa_id);
-                      return (
-                        <div 
-                          key={emp.empresa_id} 
-                          className="flex items-center gap-3 px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md cursor-pointer transition-colors"
-                          onClick={() => handleCheckboxToggle(emp.empresa_id)}
-                        >
-                           <div className={`w-4 h-4 border rounded shrink-0 flex items-center justify-center transition-colors ${isChecked ? 'bg-zinc-900 border-zinc-900 dark:bg-zinc-100 dark:border-zinc-100' : 'border-zinc-300 dark:border-zinc-600'}`}>
-                              {isChecked && <Check weight="bold" className="text-white dark:text-zinc-900 w-3 h-3" />}
-                           </div>
-                           <span className="text-sm text-zinc-700 dark:text-zinc-300 truncate">{emp.empresa_id} - {emp.empresa_nome}</span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
+            {/* Filtro 2: Clientes Console */}
+            <CompanyDropdown
+              label="CLIENTES CONSOLE"
+              companies={consoleCompanies}
+              selectedCompanies={selectedCompanies}
+              onToggle={handleCheckboxToggle}
+              onSelectAll={handleSelectAllConsole}
+              allIds={consoleIds}
+            />
 
             {/* Input Período */}
             <div className="relative flex items-center">
