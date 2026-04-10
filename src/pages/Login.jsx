@@ -76,10 +76,10 @@ export default function Login() {
               <Label htmlFor='userEmail' className='leading-5 font-medium text-sm text-zinc-900 dark:text-zinc-100'>
                 Email
               </Label>
-              <Input 
-                id='userEmail' 
-                type='email' 
-                placeholder='voce@empresa.com' 
+              <Input
+                id='userEmail'
+                type='email'
+                placeholder='exemplo@regulatorios.io'
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className='h-10 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 rounded-lg shadow-none transition-all focus-visible:outline-none focus-visible:border-zinc-400 focus-visible:ring-4 focus-visible:ring-zinc-200/50 dark:bg-zinc-900 dark:border-zinc-700 dark:text-zinc-100 dark:focus-visible:border-zinc-500 dark:focus-visible:ring-zinc-700/50'
@@ -93,14 +93,14 @@ export default function Login() {
                 Senha
               </Label>
               <div className='relative'>
-                <Input 
-                  id='password' 
-                  type={isVisible ? 'text' : 'password'} 
-                  placeholder='••••••••••••••••' 
+                <Input
+                  id='password'
+                  type={isVisible ? 'text' : 'password'}
+                  placeholder='••••••••••••••••'
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className='h-10 pr-9 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 rounded-lg shadow-none transition-all focus-visible:outline-none focus-visible:border-zinc-400 focus-visible:ring-4 focus-visible:ring-zinc-200/50 dark:bg-zinc-900 dark:border-zinc-700 dark:text-zinc-100 dark:focus-visible:border-zinc-500 dark:focus-visible:ring-zinc-700/50'
-                  required 
+                  required
                 />
                 <Button
                   type="button"
@@ -109,7 +109,7 @@ export default function Login() {
                   onClick={() => setIsVisible(!isVisible)}
                   className='text-zinc-500 dark:text-zinc-400 focus-visible:ring-0 focus-visible:ring-offset-0 absolute inset-y-0 right-0 rounded-l-none hover:bg-transparent dark:hover:bg-transparent h-full px-3'
                 >
-                  {isVisible ? <Eye width={16}/> : <EyeClosed width={16}/>}
+                  {isVisible ? <Eye width={16} /> : <EyeClosed width={16} />}
                 </Button>
               </div>
             </div>
