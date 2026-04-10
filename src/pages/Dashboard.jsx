@@ -41,7 +41,28 @@ const getPreviousMonth = (dateString) => {
   return `${String(m).padStart(2, '0')}/${y}`;
 };
 
-const CompanyTable = ({ title, data, otherData = [], loading, selectedCompanies, compareMode }) => {
+// Helper: extrai valor numérico de valor_transacoes (já vem em centavos como string/number)
+const parseValorTransacoes = (item) => {
+  if (!item || item.isEmpty) return 0;
+  const raw = item.valor_transacoes;
+  if (raw === null || raw === undefined || raw === "Zerado") return 0;
+  // Caso já seja número
+  if (typeof raw === 'number') return raw;
+  // Caso seja string numérica
+  const parsed = parseFloat(String(raw).replace(/[^\d.,-]/g, '').replace(',', '.'));
+  return isNaN(parsed) ? 0 : parsed;
+};
+
+const formatDifference = (diffCents) => {
+  const diffReais = diffCents / 100;
+  const formatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Math.abs(diffReais));
+  if (diffReais > 0) return `+ ${formatted}`;
+  if (diffReais < 0) return `- ${formatted}`;
+  return formatted; // zero
+};
+
+const CompanyTable = ({ title, data, otherData = [], loading, selectedCompanies, compareMode, isMainTable = false }) => {
+  const showDiffColumn = compareMode && isMainTable;
   // If in compareMode, we get the union of IDs between data and otherData
   const relevantIds = new Set([
     ...data.map(d => d.empresa_id),
@@ -71,26 +92,29 @@ const CompanyTable = ({ title, data, otherData = [], loading, selectedCompanies,
         <CardTitle className="text-xl text-slate-900 dark:text-zinc-100 font-semibold">{title}</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
-        <div className="w-full bg-white dark:bg-zinc-900">
-          <Table>
+        <div className="w-full bg-white dark:bg-zinc-900 overflow-x-auto">
+          <Table className="min-w-[500px]">
             <TableHeader className="bg-slate-200 dark:bg-zinc-800">
               <TableRow className="hover:bg-slate-200 dark:hover:bg-zinc-800 border-b-slate-300 dark:border-b-zinc-700 border-b">
-                <TableHead className="font-bold text-slate-700 dark:text-zinc-300 h-10 px-4">Empresa</TableHead>
-                <TableHead className="font-bold text-slate-700 dark:text-zinc-300 text-center h-10 px-4">N° de Clientes</TableHead>
-                <TableHead className="font-bold text-slate-700 dark:text-zinc-300 text-center h-10 px-4">N° de Transações</TableHead>
-                <TableHead className="font-bold text-slate-700 dark:text-zinc-300 text-right h-10 px-4">Valores</TableHead>
+                <TableHead className="font-bold text-slate-700 dark:text-zinc-300 h-10 px-3">Empresa</TableHead>
+                <TableHead className="font-bold text-slate-700 dark:text-zinc-300 text-center h-10 px-2">N° de Clientes</TableHead>
+                <TableHead className="font-bold text-slate-700 dark:text-zinc-300 text-center h-10 px-2">N° de Transações</TableHead>
+                <TableHead className="font-bold text-slate-700 dark:text-zinc-300 text-right h-10 px-3">Valores</TableHead>
+                {showDiffColumn && (
+                  <TableHead className="font-bold text-slate-700 dark:text-zinc-300 text-right h-10 px-3">Diferença</TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-32 text-center text-slate-500 dark:text-zinc-400 font-medium">
+                  <TableCell colSpan={showDiffColumn ? 5 : 4} className="h-32 text-center text-slate-500 dark:text-zinc-400 font-medium">
                     Carregando relatório...
                   </TableCell>
                 </TableRow>
               ) : displayData.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-32 text-center text-slate-500 dark:text-zinc-400 font-medium">
+                  <TableCell colSpan={showDiffColumn ? 5 : 4} className="h-32 text-center text-slate-500 dark:text-zinc-400 font-medium">
                     Nenhum dado encontrado para exibição. Verifique os filtros.
                   </TableCell>
                 </TableRow>
@@ -100,16 +124,41 @@ const CompanyTable = ({ title, data, otherData = [], loading, selectedCompanies,
                     key={item.empresa_id} 
                     className={`border-b-slate-100 dark:border-b-zinc-800 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors ${index % 2 === 0 ? 'bg-white dark:bg-zinc-900' : 'bg-slate-50/50 dark:bg-zinc-800/40'}`}
                   >
-                    <TableCell className="font-medium text-slate-900 dark:text-zinc-100 px-4 py-2 border-r border-transparent">{item.empresa_nome}</TableCell>
-                    <TableCell className="text-center text-slate-600 dark:text-zinc-300 px-4 py-2 border-r border-transparent">
+                    <TableCell className="font-medium text-slate-900 dark:text-zinc-100 px-3 py-2 border-r border-transparent whitespace-nowrap">{item.empresa_nome}</TableCell>
+                    <TableCell className="text-center text-slate-600 dark:text-zinc-300 px-2 py-2 border-r border-transparent">
                        {item.isEmpty ? '---' : item.total_clientes}
                     </TableCell>
-                    <TableCell className="text-center text-slate-600 dark:text-zinc-300 px-4 py-2 border-r border-transparent">
+                    <TableCell className="text-center text-slate-600 dark:text-zinc-300 px-2 py-2 border-r border-transparent">
                        {item.isEmpty ? '---' : item.total_transacoes}
                     </TableCell>
-                    <TableCell className="text-right text-slate-900 dark:text-zinc-100 font-semibold px-4 py-2">
+                    <TableCell className="text-right text-slate-900 dark:text-zinc-100 font-semibold px-3 py-2 whitespace-nowrap">
                        {item.isEmpty ? '---' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.valor_transacoes / 100)}
                     </TableCell>
+                    {showDiffColumn && (() => {
+                      // Só calcula diferença se o item atual tiver dados reais (não isEmpty)
+                      if (item.isEmpty) {
+                        return (
+                          <TableCell className="text-right text-slate-600 dark:text-zinc-400 font-semibold px-3 py-2 whitespace-nowrap">
+                            ---
+                          </TableCell>
+                        );
+                      }
+                      
+                      const otherItem = otherData.find(d => d.empresa_id === item.empresa_id);
+                      const currentVal = parseValorTransacoes(item);
+                      const previousVal = parseValorTransacoes(otherItem);
+                      const diff = currentVal - previousVal;
+                      
+                      let colorClass = 'text-slate-600 dark:text-zinc-400'; // zero/default
+                      if (diff > 0) colorClass = 'text-emerald-600 dark:text-emerald-400';
+                      if (diff < 0) colorClass = 'text-red-600 dark:text-red-400';
+                      
+                      return (
+                        <TableCell className={`text-right font-semibold px-3 py-2 whitespace-nowrap ${colorClass}`}>
+                          {formatDifference(diff)}
+                        </TableCell>
+                      );
+                    })()}
                   </TableRow>
                 ))
               )}
@@ -666,7 +715,7 @@ export default function Dashboard() {
       </div>
 
       {/* CONTEÚDO DA DASHBOARD (TABELAS) */}
-      <div className="w-full max-w-[1920px] p-6 md:p-12 flex flex-col md:flex-row justify-center gap-8 items-start">
+      <div className={`w-full max-w-[1920px] p-4 ${compareMode ? 'md:px-4 lg:px-6' : 'md:p-12'} flex flex-col md:flex-row justify-center ${compareMode ? 'gap-4' : 'gap-8'} items-start`}>
         
         {/* LADO ESQUERDO: MÊS COMPARATIVO RETROATIVO (-2) */}
         {compareMode && (
@@ -676,6 +725,7 @@ export default function Dashboard() {
                 data={compareData}
                 otherData={mainData}
                 compareMode={compareMode}
+                isMainTable={false}
                 loading={loadingCompare}
                 selectedCompanies={selectedCompanies}
              />
@@ -689,6 +739,7 @@ export default function Dashboard() {
               data={mainData}
               otherData={compareData}
               compareMode={compareMode}
+              isMainTable={true}
               loading={loadingMain}
               selectedCompanies={selectedCompanies}
            />
