@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { CaretDown, Check, CalendarBlank, ArrowsLeftRight } from "@phosphor-icons/react";
+import { CaretDown, Check, CalendarBlank, ArrowsLeftRight, CaretLeft, CaretRight } from "@phosphor-icons/react";
 import { 
   Card, 
   CardContent, 
@@ -125,6 +125,92 @@ const CompanyDropdown = ({ label, companies, selectedCompanies, onToggle, onSele
   );
 };
 
+const MonthYearPicker = ({ value, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  // value is expected to be MM/YYYY
+  const currentMonth = parseInt(value?.split('/')[0] || 1, 10);
+  const currentYear = parseInt(value?.split('/')[1] || new Date().getFullYear(), 10);
+
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+
+  // sync year state when popover opens based on current value
+  useEffect(() => {
+    if (open) {
+      setSelectedYear(currentYear);
+    }
+  }, [open, currentYear]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const months = [
+    { value: 1, label: 'Jan' }, { value: 2, label: 'Fev' }, { value: 3, label: 'Mar' },
+    { value: 4, label: 'Abr' }, { value: 5, label: 'Mai' }, { value: 6, label: 'Jun' },
+    { value: 7, label: 'Jul' }, { value: 8, label: 'Ago' }, { value: 9, label: 'Set' },
+    { value: 10, label: 'Out' }, { value: 11, label: 'Nov' }, { value: 12, label: 'Dez' },
+  ];
+
+  const handleMonthClick = (m) => {
+    const newStr = `${String(m).padStart(2, '0')}/${selectedYear}`;
+    onChange(newStr);
+    setOpen(false);
+  };
+
+  const incrementYear = () => setSelectedYear(prev => prev + 1);
+  const decrementYear = () => setSelectedYear(prev => prev - 1);
+
+  return (
+    <div className="relative" ref={ref}>
+      <Button
+        type="button"
+        variant="outline"
+        className="w-[140px] justify-start font-medium bg-white dark:bg-zinc-900 dark:text-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+        onClick={() => setOpen(!open)}
+      >
+        <CalendarBlank className="mr-2 h-4 w-4 text-zinc-500" />
+        {value}
+      </Button>
+
+      {open && (
+        <div className="absolute top-full left-0 mt-1 w-64 p-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-xl rounded-md z-[100] flex flex-col gap-3">
+          <div className="flex justify-between items-center px-1">
+            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={decrementYear}>
+              <CaretLeft weight="bold" />
+            </Button>
+            <span className="font-semibold text-sm text-zinc-900 dark:text-zinc-100">{selectedYear}</span>
+            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={incrementYear}>
+              <CaretRight weight="bold" />
+            </Button>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {months.map(m => {
+              const isSelected = m.value === currentMonth && selectedYear === currentYear;
+              return (
+                <Button
+                  key={m.value}
+                  type="button"
+                  variant={isSelected ? "default" : "ghost"}
+                  className={`h-9 text-sm ${isSelected ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900' : 'text-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800'}`}
+                  onClick={() => handleMonthClick(m.value)}
+                >
+                  {m.label}
+                </Button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const getPreviousMonth = (dateString) => {
   let y, m;
   if (!dateString) {
@@ -230,10 +316,10 @@ const CompanyTable = ({ title, data, otherData = [], loading, selectedCompanies,
                   >
                     <TableCell className="font-medium text-slate-900 dark:text-zinc-100 px-3 py-2 border-r border-transparent whitespace-nowrap">{item.empresa_nome}</TableCell>
                     <TableCell className="text-center text-slate-600 dark:text-zinc-300 px-2 py-2 border-r border-transparent">
-                       {item.isEmpty ? '---' : item.total_clientes}
+                       {item.isEmpty ? '---' : new Intl.NumberFormat('pt-BR').format(item.total_clientes === "Zerado" ? 0 : (item.total_clientes || 0))}
                     </TableCell>
                     <TableCell className="text-center text-slate-600 dark:text-zinc-300 px-2 py-2 border-r border-transparent">
-                       {item.isEmpty ? '---' : item.total_transacoes}
+                       {item.isEmpty ? '---' : new Intl.NumberFormat('pt-BR').format(item.total_transacoes === "Zerado" ? 0 : (item.total_transacoes || 0))}
                     </TableCell>
                     <TableCell className="text-right text-slate-900 dark:text-zinc-100 font-semibold px-3 py-2 whitespace-nowrap">
                        {item.isEmpty ? '---' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.valor_transacoes / 100)}
@@ -279,7 +365,6 @@ export default function Dashboard() {
   
   // -- STATES --
   const [sessionPeriod, setSessionPeriod] = useState(getPreviousMonth());
-  const [inputPeriod, setInputPeriod] = useState(getPreviousMonth()); // input mask field
 
   const [compareMode, setCompareMode] = useState(false);
 
@@ -512,14 +597,7 @@ export default function Dashboard() {
     loadData();
   }, [sessionPeriod, compareMode, navigate]);
 
-  const handleApplyFilter = (e) => {
-    e.preventDefault();
-    if (inputPeriod && inputPeriod.match(/^\d{2}\/\d{4}$/)) {
-      setSessionPeriod(inputPeriod);
-    } else {
-      alert("Por favor insira um período válido no formato MM/YYYY (Ex: 01/2026)");
-    }
-  };
+  // Remover handleApplyFilter já que o MonthYearPicker altera o estado e já dispara o fetch automaticamente.
 
   const handleExportCSV = () => {
     // 1. Filtrar e ordenar usando os mesmos critérios da tela
@@ -688,8 +766,7 @@ export default function Dashboard() {
           
           <div className="w-10"></div> {/* spacer */}
 
-          {/* Form Filter */}
-          <form onSubmit={handleApplyFilter} className="flex flex-wrap items-center justify-center gap-3 w-full max-w-6xl">
+          <div className="flex flex-wrap items-center justify-center gap-3 w-full max-w-6xl">
             
             {/* Filtro 1: Clientes Regulatórios */}
             <CompanyDropdown
@@ -712,20 +789,10 @@ export default function Dashboard() {
             />
 
             {/* Input Período */}
-            <div className="relative flex items-center">
-              <CalendarBlank className="absolute left-3 w-4 h-4 text-zinc-400 dark:text-zinc-500" />
-              <Input 
-                type="text" 
-                placeholder="MM/YYYY" 
-                className="pl-9 w-32 bg-white dark:bg-zinc-900 dark:text-zinc-100 dark:border-zinc-700 dark:focus-visible:ring-zinc-600"
-                value={inputPeriod}
-                onChange={(e) => setInputPeriod(e.target.value)}
-              />
-            </div>
-            
-            <Button type="submit" variant="default" className="bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300">
-              Filtrar Novo Período
-            </Button>
+            <MonthYearPicker 
+              value={sessionPeriod}
+              onChange={(newPeriod) => setSessionPeriod(newPeriod)}
+            />
             
             <div className="w-px h-8 bg-zinc-200 dark:bg-zinc-800 mx-2 hidden lg:block"></div>
 
@@ -738,7 +805,7 @@ export default function Dashboard() {
               <ArrowsLeftRight weight="bold" />
               {compareMode ? "Desativar Comparação" : "Comparar com mês anterior"}
             </Button>
-          </form>
+          </div>
           
           <div className="justify-end flex items-center gap-3">
              <div className="flex bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1 mr-2 shadow-sm border border-zinc-200 dark:border-zinc-700">
